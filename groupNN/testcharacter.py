@@ -81,13 +81,6 @@ class TestCharacter(CharacterEntity):
                 found = True
                 break
 
-        networkInput = tflearn.input_data(shape=[None, 8, 19, len(entities)])
-        conv = conv_2d(networkInput, 2, 4, activation='leaky_relu')
-        conv2 = conv_2d(conv, 4, 4, activation='leaky_relu')
-        conv3 = conv_2d(conv, 8, 4, activation='leaky_relu')
-        fullyConnected = tflearn.fully_connected(conv3, 8*4, activation='leaky_relu')
-        qValues = tflearn.fully_connected(fullyConnected, len(actions), activation='leaky_relu')
-
 
         # If the state is not currently in the QTable, add it with 0's as Q values for all actions
         # TODO is propagating new values as zero the best strategy?
@@ -122,3 +115,20 @@ class TestCharacter(CharacterEntity):
         memory_usage = sys.getsizeof(Q_Table)
 
         pass
+
+
+
+# =============================
+#   TFLearn Deep Q Network
+# =============================
+def build_dqn(num_actions, action_repeat):
+    """
+    Building a DQN.
+    """
+    networkInput = tflearn.input_data(shape=[None, 8, 19, len(entities)])
+    conv = conv_2d(networkInput, 2, 4, activation='leaky_relu')
+    conv2 = conv_2d(conv, 4, 4, activation='leaky_relu')
+    conv3 = conv_2d(conv, 8, 4, activation='leaky_relu')
+    fullyConnected = tflearn.fully_connected(conv3, 8 * 4, activation='leaky_relu')
+    qValues = tflearn.fully_connected(fullyConnected, len(actions), activation='leaky_relu')
+    return networkInput, qValues
