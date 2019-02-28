@@ -7,10 +7,15 @@ sys.path.insert(0, '../bomberman')
 from entity import CharacterEntity
 from colorama import Fore, Back
 
+import numpy as np
+import tflearn
+import tensorflow as tf
+from tflearn import conv_2d, fully_connected, input_data
+
 from sensed_world import SensedWorld
 
 entities = ['wall', 'hero', 'enemy', 'bomb', 'explosion', 'monster', 'exit']
-actions = ['north', 'south', 'east', 'west', 'bomb']
+actions = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW', 'bomb', 'nothing']
 
 # TODO Save and Load Q_Table from file for persistence (optionally human readable ie JSON)
 Q_Table = []
@@ -75,6 +80,14 @@ class TestCharacter(CharacterEntity):
                 action_score_pairs = entry[1]
                 found = True
                 break
+
+        networkInput = tflearn.input_data(shape=[None, 8, 19, len(entities)])
+        conv = conv_2d(networkInput, 2, 4, activation='leaky_relu')
+        conv2 = conv_2d(conv, 4, 4, activation='leaky_relu')
+        conv3 = conv_2d(conv, 8, 4, activation='leaky_relu')
+        fullyConnected = tflearn.fully_connected(conv3, 8*4, activation='leaky_relu')
+        qValues = tflearn.fully_connected(fullyConnected, len(actions), activation='leaky_relu')
+
 
         # If the state is not currently in the QTable, add it with 0's as Q values for all actions
         # TODO is propagating new values as zero the best strategy?
