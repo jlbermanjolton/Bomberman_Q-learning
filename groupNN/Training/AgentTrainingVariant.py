@@ -20,6 +20,36 @@ import tflearn
 import tensorflow as tf
 from tflearn import conv_2d, fully_connected, input_data
 
+import tracemalloc
+import linecache
+
+
+
+def display_top(snap, key_type='lineno', limit=3):
+    snap = snap.filter_traces((
+        tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
+        tracemalloc.Filter(False, "<unknown>"),
+    ))
+    top_stats = snap.statistics(key_type)
+
+    print("Top %s lines" % limit)
+    for index, stat in enumerate(top_stats[:limit], 1):
+        frame = stat.traceback[0]
+        # replace "/path/to/module/file.py" with "module/file.py"
+        filename = os.sep.join(frame.filename.split(os.sep)[-2:])
+        print("#%s: %s:%s: %.1f KiB"
+              % (index, filename, frame.lineno, stat.size / 1024))
+        line = linecache.getline(frame.filename, frame.lineno).strip()
+        if line:
+            print('    %s' % line)
+
+    other = top_stats[limit:]
+    if other:
+        size = sum(stat.size for stat in other)
+        print("%s other: %.1f KiB" % (len(other), size / 1024))
+    total = sum(stat.size for stat in top_stats)
+    print("Total allocated size: %.1f KiB" % (total / 1024))
+
 def build_dqn():
     """
     Building a DQN.
@@ -130,15 +160,19 @@ def get_world_state(game):
 #                          Begin Agent                             #
 ####################################################################
 
+#tracemalloc.start()
+
+maps = ['map.txt', 'map2.txt', 'map3.txt', 'map4.txt', 'map5.txt', 'map6.txt']
+
 
 entities = ['wall', 'hero', 'enemy', 'bomb', 'explosion', 'monster', 'exit']
 actions = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW', 'bomb', 'nothing']
 
-learning_rate = 0.01
+learning_rate = 0.001
 # Reward discount rate
 gamma = 0.99
 # Number of timesteps to anneal epsilon
-anneal_epsilon_timesteps = 40000
+anneal_epsilon_timesteps = 400000
 # Async gradient update frequency of each learning thread
 I_AsyncUpdate = 5
 # Timestep to reset the target network
@@ -147,7 +181,7 @@ I_target = 40000
 checkpoint_path = 'qlearning.tflearn.ckpt'
 checkpoint_interval = 2000
 
-epochs = 2000
+epochs = 1000000
 
 # Initialize network gradients
 state_batch = []
@@ -159,8 +193,11 @@ final_epsilon = 0.2
 initial_epsilon = 1.0
 epsilon = 0.2
 
-graph_ops = build_graph()  # TODO load graph from saver
+graph_ops = build_graph()
 saver = tf.train.Saver(max_to_keep=5)
+
+#snapshot = tracemalloc.take_snapshot()
+#display_top(snapshot)
 
 # Unpack the graph operations
 shared_inputs = graph_ops["shared_inputs"]
@@ -201,25 +238,52 @@ with tf.Session() as session:
     for i in range(0, epochs):
 
         # Create the game
-        g = Game.fromfile('map.txt')
+        map_name = maps[random.randint(0,5)]
+        g = Game.fromfile(map_name)
 
-        g.add_character(TestCharacter("me",  # name
-                                      "C",  # avatar
-                                      7, 18  # position
-                                      ))
+
         # g.add_monster(SelfPreservingMonster("monster",  # name
         #                                     "A",  # avatar
         #                                     3, 13,  # position
         #                                     2  # detection range
         #                                     ))
-        g.add_monster(StupidMonster("monster",  # name
-                                    "S",  # avatar
-                                    0, 10,  # position
-                                    ))
+
         # g.add_monster(StupidMonster("monster",  # name
         #                             "S",  # avatar
         #                             3, 13,  # position
         #                             ))
+
+
+        moved = False
+        while not moved:
+            exit_x = random.randint(0, 7)
+            exit_y = random.randint(0,18)
+            if g.world.empty_at(exit_x,exit_y):
+                g.world.add_exit(exit_x,exit_y)
+                moved = True
+
+        moved = False
+        while not moved:
+            char_x = random.randint(0, 7)
+            char_y = random.randint(0, 18)
+            if g.world.empty_at(char_x, char_y):
+                g.add_character(TestCharacter("me",  # name
+                                              "C",  # avatar
+                                              char_x, char_y  # position
+                                              ))
+                moved = True
+
+        moved = False
+        while not moved:
+            monster_x = random.randint(0, 7)
+            monster_y = random.randint(0, 18)
+            if g.world.empty_at(monster_x, monster_y):
+                g.add_monster(StupidMonster("monster",  # name
+                                            "S",  # avatar
+                                            monster_x, monster_y,  # position
+                                            ))
+                moved = True
+
 
         g.init_GUI()
 
@@ -328,6 +392,8 @@ with tf.Session() as session:
             if total_step_count % checkpoint_interval == 0:
                 #saver.save(session, "qlearning.ckpt", global_step=total_step_count)
                 saver.save(session, checkpoint_file)
+
+
 
         g.deinit_GUI()
 
