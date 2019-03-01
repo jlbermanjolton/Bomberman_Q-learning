@@ -112,6 +112,7 @@ class Game:
             self.draw()
             step()
         colorama.deinit()
+        return self.world.scores['me']
 
     ###################
     # Private methods #

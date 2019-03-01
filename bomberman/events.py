@@ -20,8 +20,17 @@ class Event:
             if self.character != self.other:
                 return self.character.name + "'s bomb hit " + self.other.name
             else:
+                f = open("log.txt", "a")
+                f.write("suicide ")
+                f.close()
                 return self.character.name + " killed itself"
         if self.tpe == self.CHARACTER_KILLED_BY_MONSTER:
+            f = open("log.txt", "a")
+            f.write("eaten ")
+            f.close()
             return self.character.name + " was killed by " + self.other.name
         if self.tpe == self.CHARACTER_FOUND_EXIT:
+            f = open("log.txt", "a")
+            f.write("escaped ")
+            f.close()
             return self.character.name + " found the exit"

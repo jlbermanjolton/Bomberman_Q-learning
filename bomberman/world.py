@@ -382,13 +382,16 @@ class World:
             elif e.tpe == Event.BOMB_HIT_CHARACTER:
                 if e.character != e.other:
                     self.scores[e.character.name] = self.scores[e.character.name] + 100
+                else:
+                    self.scores[e.character.name] = self.scores[e.character.name] - 10000
             elif e.tpe == Event.CHARACTER_KILLED_BY_MONSTER:
+                self.scores[e.character.name] = self.scores[e.character.name] - 100
                 self.remove_character(e.character)
             elif e.tpe == Event.CHARACTER_FOUND_EXIT:
-                self.scores[e.character.name] = self.scores[e.character.name] + 10 * self.time
+                self.scores[e.character.name] = self.scores[e.character.name] + 50 * self.time
         for k,clist in self.characters.items():
             for c in clist:
-                self.scores[c.name] = self.scores[c.name] - 2
+                self.scores[c.name] = self.scores[c.name] + 1
 
     def aientity_do(self, entities):
         """Call AI to get actions for next step"""
