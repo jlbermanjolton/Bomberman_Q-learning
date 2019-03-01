@@ -37,10 +37,6 @@ checkpoint_interval = 2000
 
 class TestCharacter(CharacterEntity):
 
-    def __init__(self):
-        self.previous_world = None
-        self.ep_reward = 0
-
     def do(self, wrld):
         pass
 
