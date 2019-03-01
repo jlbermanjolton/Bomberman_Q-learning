@@ -7,6 +7,7 @@ sys.path.insert(0, '../bomberman')
 from entity import CharacterEntity
 from colorama import Fore, Back
 import math
+import numpy as np
 
 from sensed_world import SensedWorld
 
@@ -15,9 +16,6 @@ actions = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW', 'bomb', 'wait']
 
 # TODO Save and Load Q_Table from file for persistence (optionally human readable ie JSON)
 Q_Table = []
-previous_state = None
-previous_action = None
-previous_reward = None
 
 class WorldState:
     def __init__(self):
@@ -75,24 +73,17 @@ class WorldState:
             if self.my_x + dx == self.monst_x[i] and self.my_y + dy == self.monst_y[i]:
                 return 1
         return 0
-    
-    # compare two WorldState objects (note - if we end up involving inheritance this could get messed up)
-    # https://stackoverflow.com/questions/390250/elegant-ways-to-support-equivalence-equality-in-python-classes
-    def __eq__(self, other):
-        if self.dist(self.exit_x, self.exit_y)[0] != other.dist(other.exit_x, other.exit_y)[0]:
-            return False
-        if self.dist(self.c_monst_x, self.c_monst_y)[0] != other.dist(other.c_monst_x, other.c_monst_y)[0]:
-            return False
-        if self.bomb_danger_x() != other.bomb_danger_x():
-            return False
-        if self.bomb_danger_y() != other.bomb_danger_y():
-            return False
-        return True
         
     def to_vector(self):
         vect_form = []
-        vect_form.append(self.dist(self.exit_x, self.exit_y)[0])
-        vect_form.append(self.dist(self.c_monst_x, self.c_monst_y)[0])
+        exit_dist = self.dist(self.exit_x, self.exit_y)
+        vect_form.append(exit_dist[0])
+        # vect_form.append(exit_dist[1])
+        # vect_form.append(exit_dist[2])
+        monst_dist = self.dist(self.c_monst_x, self.c_monst_y)
+        vect_form.append(monst_dist[0])
+        # vect_form.append(monst_dist[1])
+        # vect_form.append(monst_dist[2])
         vect_form.append(self.bomb_danger_x())
         vect_form.append(self.bomb_danger_y())
         vect_form += self.all_move_danger()
@@ -101,83 +92,98 @@ class WorldState:
 
 class TestCharacter(CharacterEntity):
 
+    def __init__(self, name, avatar, x, y, alpha, epsilon, Q_table, weights):
+        CharacterEntity.__init__(self, name, avatar, x, y)
+        self.alpha = alpha
+        self.gamma = 0.9
+        self.epsilon = epsilon
+        self.Q_table = Q_table
+        self.weights = weights
+        self.Q_prime = dict()
+        self.prev_world = None
+        self.prev_state = None
+        self.prev_action = 9
+
     def do(self, wrld):
-        # TODO Create a Rewards Table and update the previous reward
 
         # TODO Update the Q_Table based on previous state-action-reward
-
+        
         # Obtain the state of the current world
         world_cpy = SensedWorld.from_world(wrld)
+        Q_sa = 0
+        reward = 0
+        if self.prev_world is not None:
+            old_score = self.prev_world.scores[self.name]
+            new_score = world_cpy.scores[self.name]
+            reward = new_score - old_score - (500.0*self.prev_state.dist(self.prev_state.exit_x, self.prev_state.exit_y)[0])
+            Q_sa = np.dot(self.weights, np.array(self.prev_state.to_vector()))
+            self.Q_table[''.join(str(e) for e in self.prev_state.to_vector())][self.prev_action] = Q_sa
 
-        # Construct a grid of all possible states of the world
-        # This consists of an X * Y * entities array
-        # In the sample game this is 8x19x7 resulting in a state space of 1.86*10^137 (TOO LARGE)
-        grid = []
+        # Save relevant state details to class
         state = WorldState()
-        for x in range(0, world_cpy.width()):
-            column = []
-            for y in range(0, world_cpy.height()):
-                column.append([0] * len(entities))
-                # Check if Wall in location, if so flip corresponding position
-                if world_cpy.grid[x][y]:
-                    column[y][entities.index("wall")] = 1
-            grid.append(column)
 
-        # Add Characters from world to grid
+        # Find self in world
         for i, character_list in world_cpy.characters.items():
             for character in character_list:
                 if character == world_cpy.me(self):  # Found current player
-                    grid[character.x][character.y][entities.index("hero")] = 1
                     state.my_x = character.x
                     state.my_y = character.y
-                else:
-                    grid[character.x][character.y][entities.index("enemy")] = 1
 
-        # Add bombs from world to grid
+        # Find bombs in world
         for bomb in world_cpy.bombs.items():
-            grid[bomb[1].x][bomb[1].y][entities.index("bomb")] = 1
             state.bomb_x.append(bomb[1].x)
             state.bomb_y.append(bomb[1].y)
             
-
-        # Add explosions from world to grid
+        # Find explosions in world
         for explosion in world_cpy.explosions.items():
-            grid[explosion[1].x][explosion[1].y][entities.index("explosion")] = 1
-
-        # Add monsters from world to grid
+            state.exp_x.append(explosion[1].x)
+            state.exp_y.append(explosion[1].y)
+            
+        # Find monsters in world
         for i, monster_list in world_cpy.monsters.items():
             for monster in monster_list:
-                grid[monster.x][monster.y][entities.index("monster")] = 1
-                closest_monst = state.dist(state.monst_x, state.monst_y)
+                state.monst_x.append(monster.x)
+                state.monst_y.append(monster.y)
+                closest_monst = state.dist(state.c_monst_x, state.c_monst_y)
                 new_monst = state.dist(monster.x, monster.y)
                 if new_monst[0] < closest_monst[0]:
-                    state.monst_x = monster.x
-                    state.monst_y = monster.y
+                    state.c_monst_x = monster.x
+                    state.c_monst_y = monster.y
 
-        # Add exit cell from world to grid
+        # Find exit
         if world_cpy.exitcell is not None:
-            grid[world_cpy.exitcell[0]][world_cpy.exitcell[1]][entities.index("exit")] = 1
             state.exit_x = world_cpy.exitcell[0]
             state.exit_y = world_cpy.exitcell[1]
-
-        # Get the current action score pairs of the current world state
-        action_score_pairs = None
-        found = False
-        for entry in Q_Table:
-            if entry[0] == state:
-                action_score_pairs = entry[1]
-                found = True
-                break
-
-        # If the state is not currently in the QTable, add it with 0's as Q values for all actions
-        # TODO is propagating new values as zero the best strategy?
-        if not found:
-            action_score_pairs = [[0] * len(actions)]
-            Q_Table.append([state, action_score_pairs])
-
+        
+        # update Q table
+        if ''.join(str(e) for e in state.to_vector()) not in list(self.Q_table.keys()):
+            self.Q_table[''.join(str(e) for e in state.to_vector())] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.Q_prime = self.Q_table[''.join(str(e) for e in state.to_vector())]
+            
+        
+        self.update_weights(state.to_vector(), reward, Q_sa)
+        
         # Using epsilon greedy formula, choose an action based on the obtained action score pairs
-        # TODO implement epsilon greedy, using random currently
-        action_selection = random.randint(0, len(actions) - 1)
+        x = random.random()
+        if x < self.epsilon:
+            action_selection = random.randint(0, len(actions) - 1)
+        else:
+            max_q = -1.0*math.inf
+            action_selection = None
+            for i in range(len(self.Q_prime)):
+                if self.Q_prime[i] > max_q:
+                    max_q = self.Q_prime[i]
+                    action_selection = i
+            if action_selection is None:
+                print("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n" +
+                        "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n" +
+                        "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n")
+                action_selection = random.randint(0, len(actions) - 1)
+                
+        if self.epsilon > 0:
+            self.epsilon -= 0.00001
+        #if self.alpha > 0.001:
+            #self.alpha -= 0.0003
 
         # Parse action selection and perform action
         action_selection_string = actions[action_selection]
@@ -202,18 +208,22 @@ class TestCharacter(CharacterEntity):
         elif action_selection_string == 'bomb':
             self.place_bomb()
         
-        '''
-        # testing moving based on exit_dist
-        exit_dist = state.dist(state.exit_x, state.exit_y)
-        self.move(d_exit[1]/abs(d_exit[1]), d_exit[2]/abs(d_exit[2]))
-        '''
         # Update the persistent variables to hold information on this action selection
         # Reward is unknown until action is completed ie start of this function
-        previous_state = grid
-        previous_action = action_selection
+        self.prev_state = state
+        self.prev_action = action_selection
         previous_reward = None
 
         # Profiling
-        memory_usage = sys.getsizeof(Q_Table)
+        #memory_usage = sys.getsizeof(self.Q_table)
 
         pass
+    
+    # taken directly from approximate Q slides
+    def update_weights(self, fs, r, Q_sa):
+        if len(self.Q_prime) > 0:
+            delta = (r + self.gamma * max(self.Q_prime)) - Q_sa
+        else:
+            delta = r - Q_sa
+        for i in range(len(self.weights)):
+            self.weights[i] += self.alpha * delta * fs[i]
