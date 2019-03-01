@@ -15,7 +15,7 @@ from tflearn import conv_2d, fully_connected, input_data
 from sensed_world import SensedWorld
 
 entities = ['wall', 'hero', 'enemy', 'bomb', 'explosion', 'monster', 'exit']
-actions = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW', 'bomb', 'nothing']
+actions = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW', 'bomb', 'wait']
 
 # TODO Save and Load Q_Table from file for persistence (optionally human readable ie JSON)
 Q_Table = []
@@ -26,14 +26,25 @@ previous_reward = None
 
 class TestCharacter(CharacterEntity):
 
+    def __init__(self):
+        self.previous_world = None
+        self.ep_reward = 0
+
     def do(self, wrld):
         # TODO Create a Rewards Table and update the previous reward
+
 
         # TODO Update the Q_Table based on previous state-action-reward
 
         # Obtain the state of the current world
         world_cpy = SensedWorld.from_world(wrld)
+        if self.previous_world:
+            old_score = self.previous_world.scores[self.name]
+            new_score = world_cpy.scores[self.name]
+            reward = new_score - old_score
+            self.ep_reward += reward
 
+        self.previous_world = world_cpy
         # Construct a grid of all possible states of the world
         # This consists of an X * Y * entities array
         # In the sample game this is 8x19x7 resulting in a state space of 1.86*10^137 (TOO LARGE)
@@ -81,7 +92,6 @@ class TestCharacter(CharacterEntity):
                 found = True
                 break
 
-
         # If the state is not currently in the QTable, add it with 0's as Q values for all actions
         # TODO is propagating new values as zero the best strategy?
         if not found:
@@ -94,28 +104,40 @@ class TestCharacter(CharacterEntity):
 
         # Parse action selection and perform action
         action_selection_string = actions[action_selection]
-        if action_selection_string == 'north':
+        if action_selection_string == 'N':
             self.move(0, -1)
-        elif action_selection_string == 'south':
+        elif action_selection_string == 'NE':
+            self.move(1, -1)
+        elif action_selection_string == 'NW':
+            self.move(-1, -1)
+        elif action_selection_string == 'S':
             self.move(0, 1)
-        elif action_selection_string == 'east':
+        elif action_selection_string == 'SE':
+            self.move(1, 1)
+        elif action_selection_string == 'SW':
+            self.move(-1, 1)
+        elif action_selection_string == 'E':
             self.move(1, 0)
-        elif action_selection_string == 'west':
+        elif action_selection_string == 'W':
             self.move(-1, 0)
+        elif action_selection_string == 'wait':
+            self.move(0, 0)
         elif action_selection_string == 'bomb':
             self.place_bomb()
 
         # Update the persistent variables to hold information on this action selection
         # Reward is unknown until action is completed ie start of this function
+        global previous_state
         previous_state = grid
+        global previous_action
         previous_action = action_selection
-        previous_reward = None
+        global previous_reward
+        previous_reward = reward
 
         # Profiling
         memory_usage = sys.getsizeof(Q_Table)
 
         pass
-
 
 
 # =============================
