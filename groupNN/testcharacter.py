@@ -25,12 +25,18 @@ class WorldState:
         self.my_y = 0
         self.exit_x = 0
         self.exit_y = 0
-        # closest bomb
-        self.bomb_x = math.inf
-        self.bomb_y = math.inf
+        # list of bombs
+        self.bomb_x = []
+        self.bomb_y = []
+        # list of explosions
+        self.exp_x = []
+        self.exp_y = []
         # closest monster
-        self.monst_x = math.inf
-        self.monst_y = math.inf
+        self.c_monst_x = math.inf
+        self.c_monst_y = math.inf
+        # list of monsters
+        self.monst_x = []
+        self.monst_y = []
     
     # returns a tuple consisting of the euclidean distance to the point, the x distance, and the y distance
     def dist(self, other_x, other_y):
@@ -39,17 +45,58 @@ class WorldState:
         dist = math.sqrt(dx**2 + dy**2)
         return (dist, dx, dy)
     
+    def bomb_danger_x(self):
+        for i in range(len(self.bomb_x)):
+            if self.my_x == self.bomb_x[i]:
+                return 1
+        return 0
+        
+    def bomb_danger_y(self):
+        for i in range(len(self.bomb_x)):
+            if self.my_y == self.bomb_y[i]:
+                return 1
+        return 0
+        
+    # returns a vector of whether each move is safe
+    def all_move_danger(self):
+        moves = []
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+                if i != 0 or j != 0:
+                    moves.append(self.move_danger(i, j))
+        return moves
+        
+    # checks if a single move is safe
+    def move_danger(self, dx, dy):
+        for i in range(len(self.exp_x)):
+            if self.my_x + dx == self.exp_x[i] and self.my_y + dy == self.exp_y[i]:
+                return 1
+        for i in range(len(self.monst_x)):
+            if self.my_x + dx == self.monst_x[i] and self.my_y + dy == self.monst_y[i]:
+                return 1
+        return 0
+    
     # compare two WorldState objects (note - if we end up involving inheritance this could get messed up)
     # https://stackoverflow.com/questions/390250/elegant-ways-to-support-equivalence-equality-in-python-classes
-    # currently requires all elements of the dist to be equal, could be generalized to just the 0th element
     def __eq__(self, other):
-        if self.dist(self.exit_x, self.exit_y) != other.dist(other.exit_x, other.exit_y):
+        if self.dist(self.exit_x, self.exit_y)[0] != other.dist(other.exit_x, other.exit_y)[0]:
             return False
-        if self.dist(self.bomb_x, self.bomb_y) != other.dist(other.bomb_x, other.bomb_y):
+        if self.dist(self.c_monst_x, self.c_monst_y)[0] != other.dist(other.c_monst_x, other.c_monst_y)[0]:
             return False
-        if self.dist(self.monst_x, self.monst_y) != other.dist(other.monst_x, other.monst_y):
+        if self.bomb_danger_x() != other.bomb_danger_x():
+            return False
+        if self.bomb_danger_y() != other.bomb_danger_y():
             return False
         return True
+        
+    def to_vector(self):
+        vect_form = []
+        vect_form.append(self.dist(self.exit_x, self.exit_y)[0])
+        vect_form.append(self.dist(self.c_monst_x, self.c_monst_y)[0])
+        vect_form.append(self.bomb_danger_x())
+        vect_form.append(self.bomb_danger_y())
+        vect_form += self.all_move_danger()
+        return vect_form
         
 
 class TestCharacter(CharacterEntity):
@@ -89,11 +136,8 @@ class TestCharacter(CharacterEntity):
         # Add bombs from world to grid
         for bomb in world_cpy.bombs.items():
             grid[bomb[1].x][bomb[1].y][entities.index("bomb")] = 1
-            closest_bomb = state.dist(state.bomb_x, state.bomb_y)
-            new_bomb = state.dist(bomb[1].x, bomb[1].y)
-            if new_bomb[0] < closest_bomb[0]:
-                state.bomb_x = bomb[1].x
-                state.bomb_y = bomb[1].y
+            state.bomb_x.append(bomb[1].x)
+            state.bomb_y.append(bomb[1].y)
             
 
         # Add explosions from world to grid
