@@ -24,39 +24,6 @@ previous_state = None
 previous_action = None
 previous_reward = None
 
-class WorldState:
-    def __init__(self):
-        self.my_x = 0
-        self.my_y = 0
-        self.exit_x = 0
-        self.exit_y = 0
-        # closest bomb
-        self.bomb_x = math.inf
-        self.bomb_y = math.inf
-        # closest monster
-        self.monst_x = math.inf
-        self.monst_y = math.inf
-    
-    # returns a tuple consisting of the euclidean distance to the point, the x distance, and the y distance
-    def dist(self, other_x, other_y):
-        dx = other_x - self.my_x
-        dy = other_y - self.my_y
-        dist = math.sqrt(dx**2 + dy**2)
-        return (dist, dx, dy)
-    
-    # compare two WorldState objects (note - if we end up involving inheritance this could get messed up)
-    # https://stackoverflow.com/questions/390250/elegant-ways-to-support-equivalence-equality-in-python-classes
-    # currently requires all elements of the dist to be equal, could be generalized to just the 0th element
-    def __eq__(self, other):
-        if self.dist(self.exit_x, self.exit_y) != other.dist(other.exit_x, other.exit_y):
-            return False
-        if self.dist(self.bomb_x, self.bomb_y) != other.dist(other.bomb_x, other.bomb_y):
-            return False
-        if self.dist(self.monst_x, self.monst_y) != other.dist(other.monst_x, other.monst_y):
-            return False
-        return True
-        
-
 learning_rate = 0.001
 # Reward discount rate
 gamma = 0.99
@@ -97,7 +64,6 @@ class TestCharacter(CharacterEntity):
         # This consists of an X * Y * entities array
         # In the sample game this is 8x19x7 resulting in a state space of 1.86*10^137 (TOO LARGE)
         grid = []
-        state = WorldState()
         for x in range(0, world_cpy.width()):
             column = []
             for y in range(0, world_cpy.height()):
@@ -112,19 +78,12 @@ class TestCharacter(CharacterEntity):
             for character in character_list:
                 if character == world_cpy.me(self):  # Found current player
                     grid[character.x][character.y][entities.index("hero")] = 1
-                    state.my_x = character.x
-                    state.my_y = character.y
                 else:
                     grid[character.x][character.y][entities.index("enemy")] = 1
 
         # Add bombs from world to grid
         for bomb in world_cpy.bombs.items():
             grid[bomb[1].x][bomb[1].y][entities.index("bomb")] = 1
-            closest_bomb = state.dist(state.bomb_x, state.bomb_y)
-            new_bomb = state.dist(bomb[1].x, bomb[1].y)
-            if new_bomb[0] < closest_bomb[0]:
-                state.bomb_x = bomb[1].x
-                state.bomb_y = bomb[1].y
             
 
         # Add explosions from world to grid
@@ -135,17 +94,10 @@ class TestCharacter(CharacterEntity):
         for i, monster_list in world_cpy.monsters.items():
             for monster in monster_list:
                 grid[monster.x][monster.y][entities.index("monster")] = 1
-                closest_monst = state.dist(state.monst_x, state.monst_y)
-                new_monst = state.dist(monster.x, monster.y)
-                if new_monst[0] < closest_monst[0]:
-                    state.monst_x = monster.x
-                    state.monst_y = monster.y
 
         # Add exit cell from world to grid
         if world_cpy.exitcell is not None:
             grid[world_cpy.exitcell[0]][world_cpy.exitcell[1]][entities.index("exit")] = 1
-            state.exit_x = world_cpy.exitcell[0]
-            state.exit_y = world_cpy.exitcell[1]
 
         # Get the current action score pairs of the current world state
         action_score_pairs = None
