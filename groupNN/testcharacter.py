@@ -134,11 +134,18 @@ class TestCharacter(CharacterEntity):
             delta_x = pos[0] - my_x
             delta_y = pos[1] - my_y
 
-            self.move(delta_x, delta_y)
+            new_x = self.x + delta_x
+            new_y = self.y + delta_y
+            if new_x > (len(world_cpy.grid) - 1) or new_x < 0 or new_y > (len(world_cpy.grid[len(world_cpy.grid)-1]) -1) or new_y < 0:
+                return
+            elif world_cpy.wall_at(new_x, new_y):
+                self.place_bomb()
+            else:
+                self.move(delta_x, delta_y)
+
             return
         else:
-            # Find a wall and blow it up
-        aStarPath = astar(world_cpy, (my_x, my_y), (exit_x, exit_y))
+            return
 
 
         return
@@ -355,8 +362,8 @@ def astar(world, start, end):
                 continue
 
             # Make sure walkable terrain
-            if grid[node_position[0]][node_position[1]] != 0:
-                continue
+            #if grid[node_position[0]][node_position[1]] != 0:
+            #    continue
 
             # Check if already in closed list
             if Node(current_node, node_position) in closed_list:
@@ -382,14 +389,31 @@ def astar(world, start, end):
                     #distToMonster = min(distToMonster, abs(child.position[0] - monster.x) + abs(child.position[1] - monster.y))
                     distToMonster = min(distToMonster, ((child.position[0] - monster.x) ** 2) + ((child.position[1] - monster.y) ** 2))
 
-            distToMonsterWeight = (10000000) * (1.0/(1 + distToMonster))
+            distToMonsterWeight = (1000) * (1.0/(1 + distToMonster))
             #distToMonsterWeight = distToMonster
             distToExitWeight = ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
             #distToExitWeight = abs(child.position[0] - end_node.position[0]) + abs(child.position[1] - end_node.position[1])
 
+
+            bombDangerWeight = 0
+            for x in range(child.position[0] - 4, child.position[0] + 4):
+                if not x > (len(grid) - 1) and not x < 0:
+                    if world.bomb_at(x, child.position[1]):
+                        bombDangerWeight = 1000
+            for y in range(child.position[1] - 4, child.position[1] + 4):
+                if not y > (len(grid[len(grid) - 1]) - 1) and not y < 0:
+                    if world.bomb_at(child.position[0], y):
+                        bombDangerWeight = 1000
+
+            costOfTile = 0
+            if world.wall_at(child.position[0], child.position[1]):
+                costOfTile += 100
+            else:
+                costOfTile += 1
+
             # Create the f, g, and h values
-            child.g = current_node.g + 1
-            child.h = distToExitWeight + distToMonsterWeight
+            child.g = current_node.g + costOfTile
+            child.h = distToExitWeight + distToMonsterWeight + bombDangerWeight
             child.f = child.g + child.h
 
             # Child is already in the open list
@@ -402,3 +426,6 @@ def astar(world, start, end):
 
             # Add the child to the open list
             open_list.append(child)
+
+
+    return {}
