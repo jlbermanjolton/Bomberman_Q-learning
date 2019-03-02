@@ -42,22 +42,22 @@ while(c < 10000 and epsilon > 0 and (cut_off < weights_diff or c < 100)):
 
     # Run!
     final_score = g.go(wait=1)
-    f = open("log.txt", "a")
-    f.write(str(final_score - my_char.prev_score) + "\n")
-    f.close()
-    Q_sa = np.dot(my_char.weights, np.array(my_char.prev_state.to_vector())).item(0)
-    my_char.Q_table[''.join(str(e) for e in my_char.prev_state.to_vector())][my_char.prev_action] = Q_sa
-    my_char.update_weights(my_char.prev_state.to_vector(), final_score - my_char.prev_score, Q_sa)
-    Q_table = my_char.Q_table
-    weights = my_char.weights
-    epsilon = my_char.epsilon
-    alpha = my_char.alpha
-    actions_taken = my_char.actions_taken
-    weights_diff = abs(np.sum(weights - prev_weights))
-    np.copyto(prev_weights, weights)
-    c += 1
-    if c % 15 == 0:
-        minY -= 1
+    # f = open("log.txt", "a")
+    # f.write(str(final_score - my_char.prev_score) + "\n")
+    # f.close()
+    # Q_sa = np.dot(my_char.weights, np.array(my_char.prev_state.to_vector())).item(0)
+    # my_char.Q_table[''.join(str(e) for e in my_char.prev_state.to_vector())][my_char.prev_action] = Q_sa
+    # my_char.update_weights(my_char.prev_state.to_vector(), final_score - my_char.prev_score, Q_sa)
+    # Q_table = my_char.Q_table
+    # weights = my_char.weights
+    # epsilon = my_char.epsilon
+    # alpha = my_char.alpha
+    # actions_taken = my_char.actions_taken
+    # weights_diff = abs(np.sum(weights - prev_weights))
+    # np.copyto(prev_weights, weights)
+    # c += 1
+    # if c % 15 == 0:
+    #     minY -= 1
 
 # with open('q_table.csv', 'w') as writeFile:
     # fields = ['states', 'q_vals']

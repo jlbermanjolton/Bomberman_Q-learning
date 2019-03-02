@@ -8,11 +8,12 @@ from entity import CharacterEntity
 from colorama import Fore, Back
 import math
 import numpy as np
+import queue as q
 
 from sensed_world import SensedWorld
 
 entities = ['wall', 'hero', 'enemy', 'bomb', 'explosion', 'monster', 'exit']
-actions = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW', 'bomb', 'wait']
+actions = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW', 'bomb'] # 'wait']
 
 # TODO Save and Load Q_Table from file for persistence (optionally human readable ie JSON)
 Q_Table = []
@@ -101,7 +102,6 @@ class WorldState:
         vect_form.append(self.bomb_danger_y())
         vect_form.append(sum(self.all_move_danger()))
         return vect_form
-        
 
 class TestCharacter(CharacterEntity):
 
@@ -121,10 +121,53 @@ class TestCharacter(CharacterEntity):
 
     def do(self, wrld):
 
-        # TODO Update the Q_Table based on previous state-action-reward
-        
         # Obtain the state of the current world
         world_cpy = SensedWorld.from_world(wrld)
+
+        my_x = None
+        my_y = None
+        # Find self in world
+        for i, character_list in world_cpy.characters.items():
+            for character in character_list:
+                if character == world_cpy.me(self):  # Found current player
+                    my_x = character.x
+                    my_y = character.y
+
+        exit_x = None
+        exit_y = None
+        # Find exit
+        if world_cpy.exitcell is not None:
+            exit_x = world_cpy.exitcell[0]
+            exit_y = world_cpy.exitcell[1]
+
+        aStarPath = astar(world_cpy.grid, (my_x, my_y), (exit_x, exit_y))
+
+        if len(aStarPath) <= 1:
+            return
+
+        pos = aStarPath[1]
+        delta_x = pos[0] - my_x
+        delta_y = pos[1] - my_y
+
+        self.move(delta_x, delta_y)
+
+        return
+
+
+
+
+
+
+
+
+
+
+
+
+
+        # TODO Update the Q_Table based on previous state-action-reward
+        
+
         Q_sa = 0
         reward = 0
         new_score = None
@@ -176,7 +219,7 @@ class TestCharacter(CharacterEntity):
         
         # update Q table
         if ''.join(str(e) for e in state.to_vector()) not in list(self.Q_table.keys()):
-            self.Q_table[''.join(str(e) for e in state.to_vector())] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            self.Q_table[''.join(str(e) for e in state.to_vector())] = [0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.Q_prime = self.Q_table[''.join(str(e) for e in state.to_vector())]
             
         
@@ -200,11 +243,14 @@ class TestCharacter(CharacterEntity):
                 action_selection = random.randint(0, len(actions) - 1)
                 
         if self.epsilon > 0:
-            self.epsilon -= 0.00001
+            self.epsilon -= 0.000005
         print("e: " + str(self.epsilon))
         if self.alpha > 0.0000005:
             self.alpha -= 0.00000001
         print("a: " + str(self.alpha))
+
+        if (self.my_x != self.exit_x and self.my_y != self.exit_y):
+            astar(wrld.grid, (self.my_x,self.my_y), (self.exit_x,self.exit_y))
 
         # Parse action selection and perform action
         action_selection_string = actions[action_selection]
@@ -225,8 +271,8 @@ class TestCharacter(CharacterEntity):
             self.move(1, 0)
         elif action_selection_string == 'W':
             self.move(-1, 0)
-        elif action_selection_string == 'wait':
-            self.move(0, 0)
+        # elif action_selection_string == 'wait':
+        #     self.move(0, 0)
         elif action_selection_string == 'bomb':
             self.place_bomb()
         
@@ -248,3 +294,105 @@ class TestCharacter(CharacterEntity):
         delta = (r + self.gamma * max(self.Q_prime)) - Q_sa
         for i in range(len(self.weights)):
             self.weights[i] += self.alpha * delta * fs[i]
+
+
+class Node():
+    """Node for A*"""
+
+    def __init__(self, parent=None, position=None):
+        self.parent = parent
+        self.position = position
+
+        self.g = 0
+        self.h = 0
+        self.f = 0
+
+    def __eq__(self, other):
+        return self.position == other.position
+
+
+def astar(world, start, end):
+    """Returns a list of tuples as a path from the given start to the given end in the given maze"""
+
+    # Create start and end node
+    start_node = Node(None, start)
+    start_node.g = start_node.h = start_node.f = 0
+    end_node = Node(None, end)
+    end_node.g = end_node.h = end_node.f = 0
+
+    # Initialize both open and closed list
+    open_list = []
+    closed_list = []
+
+    # Add the start node
+    open_list.append(start_node)
+
+    # Loop until you find the end
+    while len(open_list) > 0:
+
+        # Get the current node
+        current_node = open_list[0]
+        current_index = 0
+        for index, item in enumerate(open_list):
+            if item.f < current_node.f: # TODO  Where is f coming from
+                current_node = item
+                current_index = index
+
+        # Pop current off open list, add to closed list
+        open_list.pop(current_index)
+        closed_list.append(current_node)
+
+        # Found the goal
+        if current_node == end_node:
+            path = []
+            current = current_node
+            while current is not None:
+                path.append(current.position)
+                current = current.parent
+            return path[::-1]  # Return reversed path
+
+        # Generate children
+        children = []
+        for new_position in [(0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (-1, 1), (1, -1), (1, 1)]: # Adjacent squares
+
+            # Get node position
+            node_position = (current_node.position[0] + new_position[0], current_node.position[1] + new_position[1])
+
+            # Make sure within range
+            if node_position[0] > (len(world) - 1) or node_position[0] < 0 or node_position[1] > (len(world[len(world)-1]) -1) or node_position[1] < 0:
+                continue
+
+            # Make sure walkable terrain
+            if world[node_position[0]][node_position[1]] != 0:
+                continue
+
+            # Check if already in closed list
+            if Node(current_node, node_position) in closed_list:
+                continue
+
+            # Create new node
+            new_node = Node(current_node, node_position)
+
+            # Append
+            children.append(new_node)
+
+        # Loop through children
+        for child in children:
+
+            # Child is on the closed list
+            for closed_child in closed_list:
+                if child == closed_child:
+                    continue
+
+            # Create the f, g, and h values
+            child.g = current_node.g + 1
+            child.h = ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
+            child.f = child.g + child.h
+
+            # Child is already in the open list
+            for open_node in open_list:
+                if child == open_node and child.g > open_node.g:
+                    continue
+
+            # Add the child to the open list
+            open_list.append(child)
