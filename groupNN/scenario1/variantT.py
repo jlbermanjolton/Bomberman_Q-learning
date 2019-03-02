@@ -32,16 +32,28 @@ minY = 18
 open('log.txt', 'w').close()
 while(c < 10000 and epsilon > 0 and (cut_off < weights_diff or c < 100)):
     g = Game.fromfile('map.txt')
-    g.add_monster(StupidMonster("monster", # name
-                                "S",       # avatar
-                                random.randint(0,7), random.randint(0, 18),      # position
-    ))
+    # g.add_monster(StupidMonster("monster", # name
+    #                             "S",       # avatar
+    #                             random.randint(0,7), random.randint(0, 18),      # position
+    # ))
 
-    my_char = TestCharacter("me", "C",  random.randint(0, 7), random.randint(0, 18), alpha, epsilon, Q_table, weights, actions_taken)
+    # g.add_monster(StupidMonster("monster",  # name
+    #                             "S",  # avatar
+    #                             3, 5,  # position
+    #                             ))
+    g.add_monster(SelfPreservingMonster("monster",  # name
+                                        "A",  # avatar
+                                        3, 13,  # position
+                                        2  # detection range
+                                        ))
+
+    #my_char = TestCharacter("me", "C",  random.randint(0, 7), random.randint(0, 18), alpha, epsilon, Q_table, weights, actions_taken)
+    #my_char = TestCharacter("me", "C",  random.randint(0, 7), random.randint(0, 18))
+    my_char = TestCharacter("me", "C", 0, 0)
     g.add_character(my_char)
 
     # Run!
-    final_score = g.go(wait=1)
+    final_score = g.go(wait=100)
     # f = open("log.txt", "a")
     # f.write(str(final_score - my_char.prev_score) + "\n")
     # f.close()

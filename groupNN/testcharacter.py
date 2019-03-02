@@ -105,19 +105,6 @@ class WorldState:
 
 class TestCharacter(CharacterEntity):
 
-    def __init__(self, name, avatar, x, y, alpha, epsilon, Q_table, weights, actions_taken):
-        CharacterEntity.__init__(self, name, avatar, x, y)
-        self.alpha = alpha
-        self.gamma = 0.95
-        self.epsilon = epsilon
-        self.Q_table = Q_table
-        self.weights = weights
-        self.actions_taken = actions_taken
-        self.Q_prime = dict()
-        self.prev_world = None
-        self.prev_state = None
-        self.prev_action = 9
-        self.prev_score = 0
 
     def do(self, wrld):
 
@@ -140,16 +127,19 @@ class TestCharacter(CharacterEntity):
             exit_x = world_cpy.exitcell[0]
             exit_y = world_cpy.exitcell[1]
 
-        aStarPath = astar(world_cpy.grid, (my_x, my_y), (exit_x, exit_y))
+        aStarPath = astar(world_cpy, (my_x, my_y), (exit_x, exit_y))
 
-        if len(aStarPath) <= 1:
+        if len(aStarPath) > 1:
+            pos = aStarPath[1]
+            delta_x = pos[0] - my_x
+            delta_y = pos[1] - my_y
+
+            self.move(delta_x, delta_y)
             return
+        else:
+            # Find a wall and blow it up
+        aStarPath = astar(world_cpy, (my_x, my_y), (exit_x, exit_y))
 
-        pos = aStarPath[1]
-        delta_x = pos[0] - my_x
-        delta_y = pos[1] - my_y
-
-        self.move(delta_x, delta_y)
 
         return
 
@@ -313,6 +303,8 @@ class Node():
 
 def astar(world, start, end):
     """Returns a list of tuples as a path from the given start to the given end in the given maze"""
+    grid = world.grid
+
 
     # Create start and end node
     start_node = Node(None, start)
@@ -334,7 +326,7 @@ def astar(world, start, end):
         current_node = open_list[0]
         current_index = 0
         for index, item in enumerate(open_list):
-            if item.f < current_node.f: # TODO  Where is f coming from
+            if item.f < current_node.f:
                 current_node = item
                 current_index = index
 
@@ -359,11 +351,11 @@ def astar(world, start, end):
             node_position = (current_node.position[0] + new_position[0], current_node.position[1] + new_position[1])
 
             # Make sure within range
-            if node_position[0] > (len(world) - 1) or node_position[0] < 0 or node_position[1] > (len(world[len(world)-1]) -1) or node_position[1] < 0:
+            if node_position[0] > (len(grid) - 1) or node_position[0] < 0 or node_position[1] > (len(grid[len(grid)-1]) -1) or node_position[1] < 0:
                 continue
 
             # Make sure walkable terrain
-            if world[node_position[0]][node_position[1]] != 0:
+            if grid[node_position[0]][node_position[1]] != 0:
                 continue
 
             # Check if already in closed list
@@ -380,19 +372,33 @@ def astar(world, start, end):
         for child in children:
 
             # Child is on the closed list
-            for closed_child in closed_list:
-                if child == closed_child:
-                    continue
+            if len([closed_child for closed_child in closed_list if closed_child == child]) > 0:
+                continue
+
+            # Find the distance to the closest monster
+            distToMonster = 1000
+            for i, monster_list in world.monsters.items():
+                for monster in monster_list:
+                    #distToMonster = min(distToMonster, abs(child.position[0] - monster.x) + abs(child.position[1] - monster.y))
+                    distToMonster = min(distToMonster, ((child.position[0] - monster.x) ** 2) + ((child.position[1] - monster.y) ** 2))
+
+            distToMonsterWeight = (10000000) * (1.0/(1 + distToMonster))
+            #distToMonsterWeight = distToMonster
+            distToExitWeight = ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
+            #distToExitWeight = abs(child.position[0] - end_node.position[0]) + abs(child.position[1] - end_node.position[1])
 
             # Create the f, g, and h values
             child.g = current_node.g + 1
-            child.h = ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
+            child.h = distToExitWeight + distToMonsterWeight
             child.f = child.g + child.h
 
             # Child is already in the open list
-            for open_node in open_list:
-                if child == open_node and child.g > open_node.g:
-                    continue
+            if len([open_node for open_node in open_list if child == open_node and child.g > open_node.g]) > 0:
+                continue
+
+            for index_dup, dup in enumerate(open_list):
+                if dup == child:
+                    open_list.pop(index_dup)
 
             # Add the child to the open list
             open_list.append(child)
